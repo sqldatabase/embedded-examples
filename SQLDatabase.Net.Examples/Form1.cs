@@ -1,4 +1,9 @@
-﻿using System;
+﻿// Example Code for SQLDatabase.Net Library 
+// Date March 11th 2018
+// Library Version 2.0.1.0 in use
+// http://www.sqldatabase.net
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -13,10 +18,10 @@ using System.IO;
 using System.Diagnostics;
 
 namespace SQLDatabase.Net.Examples
-{
+{    
     public partial class Form1 : Form
     {
-        //holds database file name.
+        //holds example database file name.
         static string ExampleDatabaseFile = string.Empty;
 
         //Extended Result Set and Active ResultSet are 
@@ -129,7 +134,7 @@ namespace SQLDatabase.Net.Examples
 
             string[] Files = Directory.GetFiles(Path.Combine(Directory.GetParent(Path.GetDirectoryName(Application.ExecutablePath)).Parent.FullName, "csv"), "*.csv");
             
-
+            // Example use @memory but parallel insert can be against any database schema files
             using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("schemaname=db;uri=file://@memory;"))
             {
                 cnn.Open();
@@ -181,6 +186,7 @@ namespace SQLDatabase.Net.Examples
                         {
                             string[] Values = FileLines[l].Split(','); //split line based on comma
 
+                            //// Method 1 starts here
                             cmd.Parameters["@StreetAddress"].Value = Values[0];
                             cmd.Parameters["@City"].Value = Values[1];
                             cmd.Parameters["@Zip"].Value = Values[2];
@@ -195,7 +201,9 @@ namespace SQLDatabase.Net.Examples
                             cmd.Parameters["@Longitude"].Value = Values[11];
 
                             cmd.ExecuteNonQuery();
+                            ////Method 1 ends here
 
+                            ////Method 2 starts here
                             ////Parameters can be acccessed via index to shorten the code
                             ////Parameters must be created in correct order and their count must match with values from file.
                             ////Comment the above code if you want to test following code.
@@ -204,6 +212,7 @@ namespace SQLDatabase.Net.Examples
                             //    cmd.Parameters[v].Value = Values[v];
                             //}
                             //cmd.ExecuteNonQuery();
+                            ////Method 2 ends here
                         }
                     }
 
@@ -222,9 +231,10 @@ namespace SQLDatabase.Net.Examples
 
         private void MarsEnabled_Click(object sender, EventArgs e)
         {
-            // MARS (MultipleActiveResultSets) can increase read time since queries can be combined.
+            // MARS (MultipleActiveResultSets) can decrease read time when there are multiple queries
+            // It results in better performance since queries can be combined.
             // Very useful for large forms and web pages which require data from multiple tables.
-            // Instead of running each query and processing result get all result at once.
+            // Instead of running each query and processing results get all results at once.
 
             if (string.IsNullOrWhiteSpace(ExampleDatabaseFile))
                 return;
@@ -236,7 +246,7 @@ namespace SQLDatabase.Net.Examples
             cb.Clear(); //clear any previous settings
             cb.Uri = ExampleDatabaseFile; //Set the database file
             cb.MultipleActiveResultSets = true; //We need multiple result sets
-            cb.ExtendedResultSets = false; //extended result set is false but can be set during command execution.
+            cb.ExtendedResultSets = false; //extended result set is false but can be set during command execution e.g. command.ExecuteReader(true)
             cb.SchemaName = "db"; //schema name
             
 
@@ -250,7 +260,7 @@ namespace SQLDatabase.Net.Examples
                     {
                         command.Connection = cnn;
 
-                        //execute two queries against two tables.
+                        //execute two queries against two different tables.
                         //command.CommandText = "SELECT ProductId, ProductName FROM Products; SELECT CustomerId, LastName || ' , ' || FirstName FROM Customers LIMIT 10;";
 
                         // For easy to read above command can also be written as following:
@@ -339,12 +349,13 @@ namespace SQLDatabase.Net.Examples
 
                         command.Parameters.Add(new SqlDatabaseParameter { ParameterName = "@Limit", Value = 10 });
 
+                        //When SQLDatabaseResultSet is needed a boolean type must be passed to command execution object.
                         SQLDatabaseResultSet[] cmdrs = command.ExecuteReader(true);// parameter bool type is for ExtendedResultSet
                         if ((cmdrs != null) && (cmdrs.Length > 0))
                         {
                             foreach(SQLDatabaseResultSet rs in cmdrs)
                             {
-                                Console.WriteLine("---------------------------------\n" + rs.SQLText);
+                                Debug.WriteLine("---------------------------------\n" + rs.SQLText);
                                 Debug.WriteLine("Execution time in Milliseconds: {0} ", rs.ProcessingTime);
                                 Debug.WriteLine("Rows Affected: {0}" , rs.RowsAffected); //RowsAffected is non zero for update or delete only.
 
@@ -369,14 +380,14 @@ namespace SQLDatabase.Net.Examples
                                 //data type for returned column, datatype is what is defined during create table statement.
                                 foreach(string datatype in rs.DataTypes)
                                 {
-                                    Console.Write(datatype + "\t");
+                                    Debug.Write(datatype + "\t");
                                 }
                                 Debug.WriteLine(""); //add empty line to make it easy to read
 
                                 //Column names or aliases
                                 foreach (string ColumnName in rs.Columns)
                                 {
-                                    Console.Write(ColumnName + "\t");
+                                    Debug.Write(ColumnName + "\t");
                                 }
                                 Debug.WriteLine("");//add empty line to make it easy to read
 
@@ -412,8 +423,16 @@ namespace SQLDatabase.Net.Examples
             string[] files = System.IO.Directory.GetFiles(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "*.*");
             
             string dbfilepath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "files.db");
-            if (File.Exists(dbfilepath))
-                File.Delete(dbfilepath);
+            try
+            {
+                if (File.Exists(dbfilepath))
+                    File.Delete(dbfilepath);
+            } catch (IOException ioe)
+            {
+                MessageBox.Show(ioe.Message);
+                return;
+            }
+            
 
             using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("schemaname=db;uri=file://" + dbfilepath + ";"))
             {
@@ -438,7 +457,7 @@ namespace SQLDatabase.Net.Examples
                             cmd.Parameters.Add("@ThreadId", Thread.CurrentThread.ManagedThreadId);
                             cmd.Parameters.Add("@FileName", currentFile);
                             cmd.ExecuteNonQuery();                            
-                        }
+                        }                        
                     });
                 }                    
                 catch
@@ -447,7 +466,7 @@ namespace SQLDatabase.Net.Examples
                 }
                 
                 trans.Commit();
-                //Now try reading..
+                //Now try reading first 100 rows by using LIMIT 100..
                 using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
                 {
                     cmd.CommandText = "SELECT * FROM FileNames LIMIT 100; ";
@@ -464,8 +483,17 @@ namespace SQLDatabase.Net.Examples
                 
             }
 
-            if (File.Exists(dbfilepath))
-                File.Delete(dbfilepath);
+            //Delete the database file since we don't need it.
+            try
+            {
+                if (File.Exists(dbfilepath))
+                    File.Delete(dbfilepath);
+            }
+            catch (IOException ioe)
+            {
+                MessageBox.Show(ioe.Message);
+                return;
+            }
         }
 
         private void SavePoint_Click(object sender, EventArgs e)
@@ -653,6 +681,262 @@ namespace SQLDatabase.Net.Examples
                 }
             }
 
+        }
+
+        private void CreateDropTable_Click(object sender, EventArgs e)
+        {
+            //Create file name
+            string dbfilepath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "tempdb.db");
+            
+            //Connection string
+            string strCon = "schemaname=db;uri=file://" + dbfilepath + ";";
+            using (SqlDatabaseConnection cnn = new SqlDatabaseConnection(strCon))
+            {
+                //Either open the existing database file or create new.
+                //Other option is DatabaseFileMode.OpenIfExists in which new file is not created.
+                cnn.DatabaseFileMode = DatabaseFileMode.OpenOrCreate;
+
+                //Since we are creating new table, database must be opened in ReadWrite mode.
+                cnn.DatabaseMode = DatabaseMode.ReadWrite;
+
+                try
+                {
+                    cnn.Open();
+                } catch (SqlDatabaseException dbe)
+                {
+                    Debug.WriteLine(dbe.Message);
+                    return;
+                }
+                
+                // Check if database connection is open before we create command object to query.
+                if (cnn.State == ConnectionState.Open)
+                {
+                    using (SqlDatabaseCommand cmd = new SqlDatabaseCommand())
+                    {
+                        // Assign the connection to this command object.
+                        cmd.Connection = cnn;
+
+                        cmd.CommandText = "DROP TABLE IF EXISTS ATableName; ";
+                        cmd.ExecuteNonQuery();
+
+                        StringBuilder sb = new StringBuilder();
+                        sb.AppendLine("CREATE TABLE IF NOT EXISTS ATableName ");
+                        sb.AppendLine( " ( " );
+                        sb.AppendLine(" Id INTEGER PRIMARY KEY AUTOINCREMENT "); // Column with integer data types
+                        sb.AppendLine(" , ProductName TEXT "); // Column with Text data type with no max number of characters same as varchar or string
+                        sb.AppendLine(" , Price REAL "); // double, float or decimal datatype used for money.
+                        sb.AppendLine(" , Picture BLOB "); // BLOB data type for bytes.
+                        sb.AppendLine(" , MoreInfo NONE "); // Not sure and no preference 
+                        sb.AppendLine( " ) " );
+                        cmd.CommandText = sb.ToString();
+                        cmd.ExecuteNonQuery();
+
+                        //SYS_OBJECTS Stores the table , you can verify that table exists or get the original sql from sqltext column.
+                        sb.Clear();
+                        sb.AppendLine("SELECT type [Object Type], crdatetime AS [DateTime Created], tablename [Table Name] FROM SYS_OBJECTS WHERE type = 'table' AND Name = 'ATableName';");
+                        cmd.CommandText = sb.ToString();
+                        SqlDatabaseDataReader dr = cmd.ExecuteReader();
+                        while (dr.Read())
+                        {    
+                            // Column Names using GetName function                                    
+                            for (int c = 0; c < dr.VisibleFieldCount; c++)
+                            {
+                                Debug.Write(dr.GetName(c).ToString() + "\t");
+                            }
+                            Debug.WriteLine(Environment.NewLine + "-------------------------------------------");
+
+                            // Row values
+                            for (int c = 0; c < dr.VisibleFieldCount; c++)
+                            {
+                                Debug.Write(dr.GetValue(c).ToString() + "\t");
+                            }
+                        }
+
+                        // Drop the table
+                        sb.Clear();
+                        sb.Append("DROP TABLE IF EXISTS ATableName ; ");
+                        cmd.CommandText = sb.ToString();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+
+            try
+            {
+                if (File.Exists(dbfilepath))
+                    File.Delete(dbfilepath);
+            } catch(IOException ex)
+            {
+                throw ex;
+            }
+        }
+
+        private void SIUDOperations_Click(object sender, EventArgs e)
+        {
+            using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("schemaname=db;uri=file://@memory;")) // In Memory database.
+            {
+                cnn.Open();
+
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand())
+                {
+                    cmd.Connection = cnn;
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS TestTable (Username TEXT PRIMARY KEY, FirstName TEXT, LastName TEXT);";
+                    cmd.ExecuteNonQuery();
+
+                    // INSERT
+                    cmd.CommandText = "INSERT INTO TestTable VALUES ('jdoe', 'John' , 'DOE');";
+                    cmd.ExecuteNonQuery();
+
+                    // SELECT - Load DataTable
+                    DataTable dt = new DataTable();
+                    cmd.CommandText = "SELECT Username, FirstName, LastName FROM TestTable;";
+                    using (SqlDatabaseDataAdapter da = new SqlDatabaseDataAdapter())
+                    {                        
+                        da.SelectCommand = cmd;
+                        da.Fill(dt);
+                    }
+                    if (dt.Rows.Count > 0)
+                        Debug.WriteLine(string.Format("Total Rows {0}", dt.Rows.Count));
+
+                    // UPDATE
+                    cmd.CommandText = "UPDATE TestTable SET LastName = 'Doe' WHERE Username = 'jdoe'; ";
+                    cmd.ExecuteNonQuery();
+
+                    // DELETE 
+                    cmd.CommandText = "DELETE FROM TestTable WHERE Username = 'jdoe'; ";
+                    cmd.ExecuteNonQuery();
+
+
+                    // TRUNCATE - Library does not support truncate but it can be achived by recreating the table
+                    cmd.CommandText = "SELECT sqltext FROM SYS_OBJECTS Where type = 'table' AND tablename = 'TestTable' LIMIT 1;";
+                    object TableSQLText = cmd.ExecuteScalar();
+                    if (!string.IsNullOrWhiteSpace(TableSQLText.ToString()))
+                    {
+                        cmd.CommandText = "DROP TABLE IF EXISTS TestTable;";
+                        cmd.ExecuteNonQuery();
+                        // Now recreate the table....
+                        cmd.CommandText = TableSQLText.ToString();
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+        }
+
+        private void IndexAndVacuum_Click(object sender, EventArgs e)
+        {
+            using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("schemaname=db;uri=file://" + ExampleDatabaseFile))
+            {
+                cnn.Open();
+                //CREATE INDEX IndexName ON TableName (Columns...)
+
+                // Also see online documentation
+                // http://www.sqldatabase.net/docs/create-index.aspx
+
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
+                {
+                    cmd.CommandText = "ReIndex ; "; // Rebuild all indexes on all tables.
+                    cmd.ExecuteNonQuery();
+                }
+
+                // After large delete or dropping of large table Vacuum will rearrange space.
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
+                {
+                    cmd.CommandText = "VACUUM ; "; // Rearrange database pages
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Integrity Check in case something else write to file or any other issues.
+                // If integrity check is not equals to SQLDATABASE_OK then it can be fixed by rebuilding indexes.
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
+                {
+                    cmd.CommandText = "SYSCMD Integrity_Check ; ";
+                    if (!cmd.ExecuteScalar().Equals("SQLDATABASE_OK"))
+                    {
+                        cmd.CommandText = "ReIndex ; VACUUM ;";
+                        cmd.ExecuteNonQuery();
+                    } 
+                }
+
+
+                // Not required since dispose also closes the connection
+                if (cnn.State != ConnectionState.Closed)
+                    cnn.Close();
+            }
+        }
+
+        private void SimpleTransaction_Click(object sender, EventArgs e)
+        {
+            using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("schemaname=db;uri=file://@memory;"))
+            {
+                cnn.Open();
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
+                {
+                    cmd.CommandText = "Create Table If not exists temptable(Id Integer, TextValue Text) ; ";
+                    cmd.ExecuteNonQuery();
+
+                    SqlDatabaseTransaction trans = cnn.BeginTransaction();
+                    cmd.Transaction = trans;
+
+                    try
+                    {
+                        for (int i = 0; i < 1000; i++)
+                        {
+                            cmd.CommandText = "INSERT INTO temptable VALUES (" + i + ", 'AValue" + i + "');";
+                            cmd.ExecuteNonQuery();
+                        }
+                    } catch(SqlDatabaseException sqlex)
+                    {                        
+                        trans.Rollback();
+                        Debug.WriteLine(sqlex.Message);
+                    }
+                    finally
+                    {
+                        trans.Commit();
+                    }
+                                        
+                    cmd.CommandText = "SELECT COUNT(*) FROM temptable;";
+                    Debug.WriteLine(cmd.ExecuteScalar());
+                }
+            }
+        }
+
+        private void ToInMemoryDatabase_Click(object sender, EventArgs e)
+        {
+            //Connection to physical database file
+            using (SqlDatabaseConnection cnn = new SqlDatabaseConnection("SchemaName=db;uri=file://" + ExampleDatabaseFile))
+            {                
+                cnn.Open();
+                using (SqlDatabaseCommand cmd = new SqlDatabaseCommand(cnn))
+                {
+                    cmd.CommandText = "SELECT COUNT(*) FROM db.SYS_OBJECTS;"; // db.SYS_OBJECTS is SchemaName.ObjectName 
+                    Debug.WriteLine("Object Count in db: " + cmd.ExecuteScalar());
+                    
+
+                    cmd.CommandText = "ATTACH Database '@memory' AS 'memdb1' ; ";  //Attach new database schema with name memdb1
+                    cmd.ExecuteNonQuery();
+
+                    cmd.CommandText = "BACKUP Database 'db' AS 'memdb1' ;";
+                    cmd.ExecuteNonQuery();
+
+                    cmd.CommandText = "SELECT COUNT(*) FROM memdb1.SYS_OBJECTS;";
+                    Debug.WriteLine("Object Count in memdb1: " + cmd.ExecuteScalar());
+
+                    // To Save In memory database to file take backup to disk.
+                    string dbfilepath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "ExampleBackup.db");
+                    if (File.Exists(dbfilepath))
+                        File.Delete(dbfilepath);
+
+                    cmd.CommandText = "BACKUP Database 'memdb1' AS '" + dbfilepath + "' ;";
+                    cmd.ExecuteNonQuery();
+
+                    if (File.Exists(dbfilepath))
+                        Debug.WriteLine(string.Format("Backup file created at {0}", dbfilepath));
+                    else
+                        Debug.WriteLine(cmd.GetLastError());
+                }
+
+
+            }
         }
     }
 }
